@@ -5,11 +5,44 @@
 #include <stdlib.h>
 #include "fdk_log.h"
 #include "libAACdec/aacdecoder_lib.h"
+// #include "fdkaac_dec.h"
 
 namespace aac_fdk {
 
 typedef void (*AACInfoCallbackFDK)(CStreamInfo &info);
 typedef void (*AACDataCallbackFDK)(CStreamInfo &info,INT_PCM *pcm_data, size_t len);
+
+
+class adts_header_t
+{
+public:
+	unsigned char syncword_0_to_8						: 	8;
+
+	unsigned char protection_absent						:	1;
+	unsigned char layer									: 	2;
+	unsigned char ID 									:	1;
+	unsigned char syncword_9_to_12						:	4;
+
+	unsigned char channel_configuration_0_bit			:	1;
+	unsigned char private_bit							:	1;
+	unsigned char sampling_frequency_index				:	4;
+	unsigned char profile								:	2;
+
+	unsigned char frame_length_0_to_1 					: 	2;
+	unsigned char copyrignt_identification_start		: 	1;
+	unsigned char copyright_identification_bit 			: 	1;
+	unsigned char home 									: 	1;
+	unsigned char original_or_copy 						: 	1;
+	unsigned char channel_configuration_1_to_2 			: 	2;
+
+	unsigned char frame_length_2_to_9					:	8;
+
+	unsigned char adts_buffer_fullness_0_to_4 			: 	5;
+	unsigned char frame_length_10_to_12 				: 	3;
+
+	unsigned char number_of_raw_data_blocks_in_frame 	: 	2;
+	unsigned char adts_buffer_fullness_5_to_10 			: 	6;
+};
 
 /**
  * @brief Audio Decoder which decodes AAC into a PCM stream
@@ -39,6 +72,57 @@ class AACDecoderFDK  {
             setDataCallback(dataCallback);
             setInfoCallback(infoCallback);
         }
+
+		// AACDecoderFDK(int output_buffer_size=2048){
+        //     this->output_buffer_size = output_buffer_size;
+		// 	if (output_buffer==nullptr){
+        // 		output_buffer = new INT_PCM[output_buffer_size];
+    	// 	}
+    	// 	fdkaac_dec.aacdec_init_adts();
+        // }
+
+		// int aacDecode(char * byteArray, size_t byteArraySize) {
+		// 	adts_header_t *adts = (adts_header_t *)(&byteArray[0]);
+		// 	if (adts->syncword_0_to_8 != 0xff || adts->syncword_9_to_12 != 0xf) {
+		// 		return 101;
+		// 	}
+
+		// 	int aac_frame_size = adts->frame_length_0_to_1 << 11 | adts->frame_length_2_to_9 << 3 | adts->frame_length_10_to_12;
+
+		// 	if (aac_frame_size > byteArraySize) {
+		// 		return 102;
+
+		// 	}
+
+		// 	int leftSize = aac_frame_size;
+		// 	int ret = fdkaac_dec.aacdec_fill((char *)byteArray, aac_frame_size, &leftSize);
+
+		// 	if (ret != 0) {
+		// 		return 103;
+		// 	}
+
+		// 	if (leftSize > 0) {
+		// 		return 105;
+		// 	}
+
+		// 	int validSize = 0;
+		// 	ret = fdkaac_dec.aacdec_decode_frame((char *)output_buffer, output_buffer_size * 2, &validSize);
+
+		// 	if (ret == AAC_DEC_NOT_ENOUGH_BITS) {
+		// 		return 106;
+		// 	}
+
+		// 	if (ret != 0) {
+		// 		return 107;
+		// 	}
+
+
+		// 	if (fdkaac_dec.aacdec_sample_rate() <= 0) {
+		// 		return 108;
+		// 	}
+
+		// 	return validSize;
+		// }
 
 #ifdef ARDUINO
 
@@ -142,17 +226,19 @@ class AACDecoderFDK  {
         // write AAC data to be converted to PCM data - we feed the decoder witch batches of max 1k
       	virtual size_t write(const void *in_ptr, size_t in_size) {
 			LOG_FDK(FDKDebug,"write %zu bytes", in_size);
-			uint8_t *byte_ptr = (uint8_t *)in_ptr;
-			size_t open = in_size;
-			int pos = 0;
-			while(open>0){
-				// a frame is between 1 and 768 bytes => so we feed the decoder with small chunks
-				size_t len = std::min<int>(open, 256);
-				int decoded = decode(byte_ptr+pos, len);
-				pos+=decoded;
-				open-=decoded;
-			}
-            return pos;
+			int rr = decode(in_ptr, in_size);
+			return rr;
+			// uint8_t *byte_ptr = (uint8_t *)in_ptr;
+			// size_t open = in_size;
+			// int pos = 0;
+			// while(open>0){
+			// 	// a frame is between 1 and 768 bytes => so we feed the decoder with small chunks
+			// 	size_t len = std::min<int>(open, 256);
+			// 	int decoded = decode(byte_ptr+pos, len);
+			// 	pos+=decoded;
+			// 	open-=decoded;
+			// }
+            // return pos;
         }
 
         // provides detailed information about the stream
@@ -189,6 +275,9 @@ class AACDecoderFDK  {
         AACDataCallbackFDK pwmCallback = nullptr;
         AACInfoCallbackFDK infoCallback = nullptr;
 		int decoder_flags = 0;
+
+		// decoder
+		// AacDecoder fdkaac_dec;
 
 #ifdef ARDUINO
         Print *out = nullptr;
